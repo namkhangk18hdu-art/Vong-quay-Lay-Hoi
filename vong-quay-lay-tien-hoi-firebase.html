@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vòng Quay Lấy Tiền Hội</title>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --ink:#2B0A0A;
+    --cream:#FFF4E3;
+    --crimson:#A6192E;
+    --crimson-deep:#7A0F1F;
+    --gold:#D4AF37;
+    --gold-soft:#F0D889;
+    --jade:#2F6F4E;
+    --shadow: 0 18px 40px rgba(43,10,10,0.28);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 15% 10%, rgba(212,175,55,0.16), transparent 45%),
+      radial-gradient(circle at 85% 85%, rgba(166,25,46,0.14), transparent 50%),
+      var(--cream);
+    color:var(--ink);
+    font-family: ui-sans-serif, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display:flex;
+    justify-content:center;
+    padding:36px 16px 64px;
+  }
+  .wrap{ width:100%; max-width:960px; }
+
+  header{ text-align:center; margin-bottom:28px; }
+  .eyebrow{
+    font-size:12px; letter-spacing:0.32em; text-transform:uppercase;
+    color:var(--crimson-deep); font-weight:700; margin-bottom:10px;
+  }
+  h1{
+    font-family: "Times New Roman", "Noto Serif", Georgia, serif;
+    font-weight:700;
+    font-size:clamp(28px,5vw,44px);
+    margin:0 0 8px;
+    letter-spacing:0.01em;
+    color:var(--crimson-deep);
+  }
+  h1 span{ color:var(--gold); text-shadow: 0 1px 0 rgba(122,15,31,0.3); }
+  .sub{ color:#6b4a3a; font-size:15px; max-width:520px; margin:0 auto; line-height:1.5; }
+
+  .board{
+    display:grid;
+    grid-template-columns: 1fr;
+    gap:32px;
+    align-items:start;
+  }
+  @media (min-width:760px){
+    .board{ grid-template-columns: 380px 1fr; }
+  }
+
+  .wheel-card{
+    background:#fff;
+    border-radius:24px;
+    padding:28px 20px 24px;
+    box-shadow:var(--shadow);
+    border:1px solid rgba(212,175,55,0.35);
+    display:flex; flex-direction:column; align-items:center;
+  }
+
+  .wheel-stage{ position:relative; width:280px; height:280px; margin-bottom:22px; }
+  .pointer{
+    position:absolute; top:-14px; left:50%; transform:translateX(-50%);
+    width:0; height:0; z-index:5;
+    border-left:14px solid transparent;
+    border-right:14px solid transparent;
+    border-top:24px solid var(--jade);
+    filter: drop-shadow(0 3px 3px rgba(0,0,0,0.25));
+  }
+  .wheel-ring{
+    position:absolute; inset:0; border-radius:50%;
+    background: conic-gradient(from 0deg, var(--gold) 0 2%, transparent 2% 98%, var(--gold) 98% 100%);
+    padding:0;
+  }
+  svg.wheel{
+    width:100%; height:100%; border-radius:50%;
+    transition: transform 3.6s cubic-bezier(0.13,0.75,0.1,1);
+    box-shadow: 0 0 0 6px var(--gold), 0 0 0 9px var(--crimson-deep);
+  }
+  .hub{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:56px; height:56px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, var(--gold-soft), var(--gold) 60%, #a9821f 100%);
+    border:3px solid var(--crimson-deep);
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px; z-index:4; box-shadow:0 2px 6px rgba(0,0,0,0.35);
+  }
+
+  .controls{ width:100%; }
+  label.field-label{
+    display:block; font-size:12px; font-weight:700; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--crimson-deep); margin-bottom:6px;
+  }
+  select{
+    width:100%; padding:11px 12px; border-radius:12px;
+    border:1.5px solid rgba(122,15,31,0.25); background:#fffaf1;
+    font-size:15px; color:var(--ink); margin-bottom:14px;
+  }
+  select:focus, button:focus-visible{ outline:3px solid var(--jade); outline-offset:2px; }
+
+  .spin-btn{
+    width:100%; padding:14px 16px; border:none; border-radius:14px;
+    background: linear-gradient(180deg, var(--crimson) 0%, var(--crimson-deep) 100%);
+    color:var(--cream); font-size:16px; font-weight:700; letter-spacing:0.03em;
+    cursor:pointer; box-shadow: 0 8px 18px rgba(122,15,31,0.35);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .spin-btn:hover:not(:disabled){ transform:translateY(-2px); box-shadow:0 12px 22px rgba(122,15,31,0.4); }
+  .spin-btn:disabled{ opacity:0.5; cursor:not-allowed; box-shadow:none; }
+
+  .status-msg{
+    margin-top:12px; font-size:13.5px; color:#6b4a3a; min-height:18px; text-align:center;
+  }
+  .status-msg.win{ color:var(--jade); font-weight:700; }
+
+  .history-card{
+    background:#fff; border-radius:24px; padding:24px 22px;
+    box-shadow:var(--shadow); border:1px solid rgba(212,175,55,0.35);
+  }
+  .history-card h2{
+    font-family: "Times New Roman", "Noto Serif", Georgia, serif; font-size:20px; margin:0 0 4px; color:var(--crimson-deep);
+  }
+  .history-card .desc{ font-size:13px; color:#8a6a54; margin:0 0 16px; }
+
+  .slots-grid{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;
+  }
+  .slot-pill{
+    border-radius:12px; padding:10px 8px; text-align:center;
+    border:1.5px dashed rgba(122,15,31,0.3);
+    font-size:12.5px; color:#8a6a54;
+  }
+  .slot-pill.taken{
+    border-style:solid; border-color:var(--jade);
+    background:rgba(47,111,78,0.08); color:var(--jade); font-weight:700;
+  }
+  .slot-pill .num{ display:block; font-weight:700; color:var(--crimson-deep); font-size:13px; margin-bottom:3px; }
+  .slot-pill.taken .num{ color:var(--jade); }
+
+  table{ width:100%; border-collapse:collapse; font-size:14px; }
+  thead th{
+    text-align:left; font-size:11px; letter-spacing:0.06em; text-transform:uppercase;
+    color:#8a6a54; padding:0 8px 8px; border-bottom:1.5px solid rgba(212,175,55,0.4);
+  }
+  tbody td{ padding:10px 8px; border-bottom:1px solid rgba(122,15,31,0.08); }
+  tbody tr:last-child td{ border-bottom:none; }
+  .empty-row td{ text-align:center; color:#a98d7a; padding:20px 8px; font-style:italic; }
+  .tag{
+    display:inline-block; background:var(--gold-soft); color:var(--crimson-deep);
+    font-weight:700; padding:2px 9px; border-radius:999px; font-size:12.5px;
+  }
+
+  .reset-row{ margin-top:18px; text-align:right; }
+  .reset-btn{
+    background:none; border:1px solid rgba(122,15,31,0.3); color:#8a6a54;
+    padding:7px 14px; border-radius:10px; font-size:12.5px; cursor:pointer;
+  }
+  .reset-btn:hover{ background:rgba(166,25,46,0.06); color:var(--crimson-deep); }
+
+  .shared-note{
+    text-align:center; font-size:12px; color:#a98d7a; margin-top:22px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Hội Chị Em</div>
+    <h1>Vòng Quay <span>Lấy Tiền Hội</span></h1>
+    <p class="sub">Chọn tên của bạn rồi quay để xác định lượt lấy tiền. Kết quả và lịch sử được lưu chung, tất cả mọi người đều xem được.</p>
+  </header>
+
+  <div class="board">
+    <div class="wheel-card">
+      <div class="wheel-stage">
+        <div class="pointer"></div>
+        <svg class="wheel" id="wheel" viewBox="0 0 280 280"></svg>
+        <div class="hub">🧧</div>
+      </div>
+
+      <div class="controls">
+        <label class="field-label" for="player-select">Bạn là ai?</label>
+        <select id="player-select"></select>
+        <button class="spin-btn" id="spin-btn">Quay Ngay</button>
+        <p class="status-msg" id="status-msg">Đang tải dữ liệu…</p>
+      </div>
+    </div>
+
+    <div class="history-card">
+      <h2>Bảng Ô & Lịch Sử</h2>
+      <p class="desc">Ô nào đã trúng sẽ khóa lại và hiện tên người trúng.</p>
+
+      <div class="slots-grid" id="slots-grid"></div>
+
+      <table>
+        <thead>
+          <tr><th>Người quay</th><th>Kết quả</th><th>Thời gian</th></tr>
+        </thead>
+        <tbody id="history-body">
+          <tr class="empty-row"><td colspan="3">Chưa có ai quay</td></tr>
+        </tbody>
+      </table>
+
+      <div class="reset-row">
+        <button class="reset-btn" id="reset-btn">Đặt lại vòng quay (xóa toàn bộ lịch sử)</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="shared-note">Dữ liệu vòng quay này dùng chung cho tất cả mọi người mở trang này.</p>
+</div>
+
+<script>
+/* ====================== CẤU HÌNH FIREBASE ======================
+   Dán "firebaseConfig" bạn copy từ Firebase Console vào bên dưới,
+   thay thế toàn bộ object mẫu này. KHÔNG xoá dấu ngoặc { }.
+=================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCMDPzbGuTkH5Ys6i5OZF5yRGdZBu9KCDc",
+  authDomain: "lay-hoi.firebaseapp.com",
+  databaseURL: "https://lay-hoi-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "lay-hoi",
+  storageBucket: "lay-hoi.firebasestorage.app",
+  messagingSenderId: "620972427004",
+  appId: "1:620972427004:web:2f1f9e6b58225e27b63979"
+};
+/* ================================================================= */
+
+const PLAYERS = ['Nguyễn Nga','Trần Phương','Nguyễn Xuyến','Trương Trang','Nguyễn Hương','Trần Tùng'];
+const SLOT_COUNT = 6;
+const COLORS = ['#A6192E', '#D4AF37']; // xen kẽ đỏ / vàng
+const TEXT_COLORS = ['#FFF4E3', '#2B0A0A'];
+const DB_PATH = 'wheel-lay-tien-hoi';
+
+let state = { slots: Array.from({length: SLOT_COUNT}, (_,i)=>({ id:i, label:'Lần '+(i+1), winner:null })), history: [] };
+let spinning = false;
+let currentRotation = 0;
+let dbRef = null;
+let firebaseReady = false;
+
+const wheelEl = document.getElementById('wheel');
+const selectEl = document.getElementById('player-select');
+const spinBtn = document.getElementById('spin-btn');
+const statusEl = document.getElementById('status-msg');
+const slotsGridEl = document.getElementById('slots-grid');
+const historyBodyEl = document.getElementById('history-body');
+const resetBtn = document.getElementById('reset-btn');
+
+function defaultSlotsObj(){
+  const obj = {};
+  for(let i=0;i<SLOT_COUNT;i++){ obj[i] = { label: 'Lần '+(i+1), winner: null }; }
+  return obj;
+}
+
+function initFirebase(){
+  const looksUnfilled = Object.values(firebaseConfig).some(v => typeof v === 'string' && v.startsWith('DÁN_'));
+  if(looksUnfilled){
+    statusEl.textContent = 'Chưa cấu hình Firebase — xem hướng dẫn bên dưới file.';
+    spinBtn.disabled = true;
+    return;
+  }
+  try{
+    firebase.initializeApp(firebaseConfig);
+    dbRef = firebase.database().ref(DB_PATH);
+    firebaseReady = true;
+
+    dbRef.once('value').then(snap => {
+      if(!snap.exists()){
+        dbRef.set({ slots: defaultSlotsObj(), history: {} });
+      }
+    });
+
+    dbRef.on('value', snap => {
+      const val = snap.val() || { slots: defaultSlotsObj(), history: {} };
+      const slotsObj = val.slots || defaultSlotsObj();
+      const historyObj = val.history || {};
+      state = {
+        slots: Array.from({length: SLOT_COUNT}, (_,i)=> ({
+          id:i,
+          label: (slotsObj[i] && slotsObj[i].label) || ('Lần '+(i+1)),
+          winner: slotsObj[i] ? slotsObj[i].winner : null
+        })),
+        history: Object.keys(historyObj).map(key => ({
+          key,
+          player: historyObj[key].player,
+          label: historyObj[key].label,
+          time: historyObj[key].time || 0
+        }))
+      };
+      if(!spinning) renderAll();
+    }, err => {
+      console.error('Lỗi kết nối Firebase', err);
+      statusEl.textContent = 'Không kết nối được tới Firebase, kiểm tra lại cấu hình/Rules.';
+    });
+  }catch(e){
+    console.error('Lỗi khởi tạo Firebase', e);
+    statusEl.textContent = 'Cấu hình Firebase không hợp lệ.';
+  }
+}
+
+function polarToCartesian(cx, cy, r, angleDeg){
+  const rad = (angleDeg - 90) * Math.PI / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function describeSlice(cx, cy, r, startAngle, endAngle){
+  const start = polarToCartesian(cx, cy, r, endAngle);
+  const end = polarToCartesian(cx, cy, r, startAngle);
+  const largeArc = endAngle - startAngle <= 180 ? '0' : '1';
+  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y} Z`;
+}
+
+function activeSlots(){
+  // chỉ những ô CHƯA trúng mới còn xuất hiện trên vòng quay, giữ nguyên thứ tự id gốc
+  return state.slots.filter(s => !s.winner);
+}
+
+function renderWheel(){
+  const cx = 140, cy = 140, r = 138;
+  const active = activeSlots();
+  let svg = '';
+
+  if(!active.length){
+    svg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#e7ddc8"/>
+           <text x="${cx}" y="${cy}" fill="#8a6a54" font-size="15" font-weight="700"
+             text-anchor="middle" dominant-baseline="middle" font-family="Times New Roman, Noto Serif, Georgia, serif">Đã quay đủ</text>`;
+    wheelEl.innerHTML = svg;
+    return;
+  }
+
+  const segAngle = 360 / active.length;
+  active.forEach((slot, i) => {
+    const startAngle = i * segAngle;
+    const endAngle = startAngle + segAngle;
+    const midAngle = startAngle + segAngle / 2;
+    const colorIdx = slot.id % 2; // giữ màu gắn với từng "Lần" cụ thể, không đổi theo vị trí
+    const fill = COLORS[colorIdx];
+    const textColor = TEXT_COLORS[colorIdx];
+    svg += `<path d="${describeSlice(cx,cy,r,startAngle,endAngle)}" fill="${fill}" stroke="#fff4e3" stroke-width="1.5"/>`;
+    const labelPos = polarToCartesian(cx, cy, r*0.62, midAngle);
+    svg += `<text x="${labelPos.x}" y="${labelPos.y}" fill="${textColor}" font-size="13" font-weight="700"
+              text-anchor="middle" dominant-baseline="middle"
+              transform="rotate(${midAngle}, ${labelPos.x}, ${labelPos.y})"
+              font-family="Times New Roman, Noto Serif, Georgia, serif">${slot.label}</text>`;
+  });
+  wheelEl.innerHTML = svg;
+}
+
+function renderSlots(){
+  slotsGridEl.innerHTML = state.slots.map(s => `
+    <div class="slot-pill ${s.winner ? 'taken' : ''}">
+      <span class="num">${s.label}</span>
+      ${s.winner ? s.winner : 'Còn trống'}
+    </div>
+  `).join('');
+}
+
+function renderHistory(){
+  if(!state.history.length){
+    historyBodyEl.innerHTML = `<tr class="empty-row"><td colspan="3">Chưa có ai quay</td></tr>`;
+    return;
+  }
+  const rows = [...state.history].sort((a,b)=> b.time - a.time);
+  historyBodyEl.innerHTML = rows.map(h => `
+    <tr>
+      <td>${h.player}</td>
+      <td><span class="tag">${h.label}</span></td>
+      <td>${formatTime(h.time)}</td>
+    </tr>
+  `).join('');
+}
+
+function formatTime(ts){
+  if(!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleString('vi-VN', { hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' });
+}
+
+function renderPlayerSelect(){
+  const prev = selectEl.value;
+  selectEl.innerHTML = `<option value="">— Chọn tên —</option>` + PLAYERS.map(p => {
+    const done = state.history.find(h => h.player === p);
+    const suffix = done ? ` (đã quay: ${done.label})` : '';
+    return `<option value="${p}" ${done ? 'disabled' : ''}>${p}${suffix}</option>`;
+  }).join('');
+  if(prev && PLAYERS.includes(prev) && !state.history.find(h => h.player === prev)){
+    selectEl.value = prev;
+  }
+  updateSpinAvailability();
+}
+
+function remainingSlots(){
+  return state.slots.filter(s => !s.winner);
+}
+
+function updateSpinAvailability(){
+  const noSlotsLeft = remainingSlots().length === 0;
+  const noPlayerChosen = !selectEl.value;
+  spinBtn.disabled = spinning || noSlotsLeft || noPlayerChosen;
+  if(noSlotsLeft){
+    statusEl.textContent = 'Đã quay đủ 6 lần, vòng quay đã đóng.';
+    statusEl.classList.remove('win');
+  } else if(!spinning){
+    statusEl.textContent = noPlayerChosen ? 'Chọn tên của bạn để bắt đầu quay.' : 'Sẵn sàng quay!';
+    statusEl.classList.remove('win');
+  }
+}
+
+function renderAll(){
+  renderWheel();
+  renderSlots();
+  renderHistory();
+  renderPlayerSelect();
+}
+
+async function handleSpin(){
+  if(spinning || !firebaseReady) return;
+  const player = selectEl.value;
+  if(!player) return;
+  const available = remainingSlots();
+  if(!available.length) return;
+
+  spinning = true;
+  spinBtn.disabled = true;
+  statusEl.classList.remove('win');
+  statusEl.textContent = `${player} đang quay…`;
+
+  const activeNow = activeSlots();
+  const target = activeNow[Math.floor(Math.random() * activeNow.length)];
+  const targetIndex = activeNow.findIndex(s => s.id === target.id);
+  const segAngle = 360 / activeNow.length;
+  const centerAngle = targetIndex * segAngle + segAngle / 2;
+  const jitter = (Math.random() - 0.5) * (segAngle * 0.5);
+  const targetAngle = (360 - centerAngle + jitter + 360) % 360;
+  const spins = 6 + Math.floor(Math.random() * 3); // 6-8 vòng
+  const deltaNeeded = ((targetAngle - (currentRotation % 360)) + 360) % 360;
+  currentRotation += spins * 360 + deltaNeeded;
+  wheelEl.style.transform = `rotate(${currentRotation}deg)`;
+
+  await new Promise(resolve => setTimeout(resolve, 3700));
+
+  // Dùng transaction để "khoá" ô một cách an toàn: nếu 2 người bấm quay
+  // gần như cùng lúc trúng cùng 1 ô, chỉ người đến trước mới ghi được.
+  const slotRef = firebase.database().ref(`${DB_PATH}/slots/${target.id}`);
+  const txResult = await slotRef.transaction(current => {
+    if(current && current.winner) return; // đã có người trúng -> huỷ giao dịch
+    return { label: target.label, winner: player };
+  });
+
+  if(!txResult.committed){
+    statusEl.textContent = 'Ô này vừa có người khác quay trúng, hãy quay lại lần nữa.';
+    spinning = false;
+    updateSpinAvailability();
+    return;
+  }
+
+  firebase.database().ref(`${DB_PATH}/history`).push({
+    player, label: target.label, time: firebase.database.ServerValue.TIMESTAMP
+  });
+
+  statusEl.textContent = `🎉 ${player} quay trúng ${target.label}!`;
+  statusEl.classList.add('win');
+  spinning = false;
+  updateSpinAvailability();
+}
+
+async function handleReset(){
+  if(!firebaseReady) return;
+  const ok = confirm('Xóa toàn bộ lịch sử và đặt lại vòng quay cho TẤT CẢ mọi người?');
+  if(!ok) return;
+  currentRotation = 0;
+  wheelEl.style.transition = 'none';
+  wheelEl.style.transform = 'rotate(0deg)';
+  await firebase.database().ref(DB_PATH).set({ slots: defaultSlotsObj(), history: {} });
+  requestAnimationFrame(() => { wheelEl.style.transition = ''; });
+}
+
+selectEl.addEventListener('change', updateSpinAvailability);
+spinBtn.addEventListener('click', handleSpin);
+resetBtn.addEventListener('click', handleReset);
+
+renderAll();
+initFirebase();
+</script>
+</body>
+</html>
