@@ -236,8 +236,10 @@ const firebaseConfig = {
 };
 /* ================================================================= */
 
-const PLAYERS = ['Nguyễn Nga','Trần Phương','Nguyễn Xuyến','Trương Trang','Nguyễn Hương','Trần Tùng'];
-const SLOT_COUNT = 6;
+const PLAYERS = ['Nguyễn Nga','Trần Phương','Nguyễn Xuyến','Trương Trang','Nguyễn Hương','Trần Tùng','Nam Khang'];
+const SLOT_COUNT = 7;
+const FIXED_PLAYER = 'Nam Khang'; // người này luôn quay trúng ô đầu tiên (id 0 = "Lần 1")
+const FIXED_SLOT_ID = 0;
 const COLORS = ['#A6192E', '#D4AF37']; // xen kẽ đỏ / vàng
 const TEXT_COLORS = ['#FFF4E3', '#2B0A0A'];
 const DB_PATH = 'wheel-lay-tien-hoi';
@@ -408,7 +410,7 @@ function updateSpinAvailability(){
   const noPlayerChosen = !selectEl.value;
   spinBtn.disabled = spinning || noSlotsLeft || noPlayerChosen;
   if(noSlotsLeft){
-    statusEl.textContent = 'Đã quay đủ 6 lần, vòng quay đã đóng.';
+    statusEl.textContent = `Đã quay đủ ${SLOT_COUNT} lần, vòng quay đã đóng.`;
     statusEl.classList.remove('win');
   } else if(!spinning){
     statusEl.textContent = noPlayerChosen ? 'Chọn tên của bạn để bắt đầu quay.' : 'Sẵn sàng quay!';
@@ -436,7 +438,17 @@ async function handleSpin(){
   statusEl.textContent = `${player} đang quay…`;
 
   const activeNow = activeSlots();
-  const target = activeNow[Math.floor(Math.random() * activeNow.length)];
+  let target;
+  if(player === FIXED_PLAYER){
+    // Nam Khang luôn quay trúng ô "Lần 1" (nếu vì lý do gì đó ô này đã có
+    // người khác trúng thì rơi về chọn ngẫu nhiên để tránh kẹt vòng quay)
+    target = activeNow.find(s => s.id === FIXED_SLOT_ID) || activeNow[Math.floor(Math.random() * activeNow.length)];
+  } else {
+    // Người khác không bao giờ quay trúng ô "Lần 1" (ô này dành riêng cho Nam Khang)
+    const pool = activeNow.filter(s => s.id !== FIXED_SLOT_ID);
+    const chooseFrom = pool.length ? pool : activeNow; // an toàn nếu chỉ còn ô Lần 1
+    target = chooseFrom[Math.floor(Math.random() * chooseFrom.length)];
+  }
   const targetIndex = activeNow.findIndex(s => s.id === target.id);
   const segAngle = 360 / activeNow.length;
   const centerAngle = targetIndex * segAngle + segAngle / 2;
